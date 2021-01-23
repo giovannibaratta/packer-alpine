@@ -1,0 +1,69 @@
+{
+    "description": "Build Alpine 3.13 with python for Vagrant",
+    "variables": {
+        "iso_url": "https://dl-cdn.alpinelinux.org/alpine/v3.13/releases/x86_64/alpine-virt-3.13.0-x86_64.iso",
+        "iso_checksum": "sha256:daa45a8c12b8458296188d64e6091da79087d47a914d90a0976f6ef92fafba28",
+        "root_password": "vagrant",
+        "ssh_password": "vagrant",
+        "ssh_username": "vagrant"
+    },
+    "builders": [
+        {
+            "type": "virtualbox-iso",
+            "format": "ova",
+            "guest_os_type": "Linux26_64",
+            "guest_additions_mode": "disable",
+            "hard_drive_interface": "sata",
+            "iso_url": "{{user `iso_url`}}",
+            "iso_checksum": "{{user `iso_checksum`}}",
+            "http_directory": "setup_files",
+            "communicator": "ssh",
+            "ssh_username": "{{user `ssh_username`}}",
+            "ssh_password": "{{user `ssh_password`}}",
+            "shutdown_command": "echo {{user `root_password`}} | sudo -S /sbin/poweroff",
+            "boot_command": [
+                "root<enter><wait>",
+                "ifconfig eth0 up && udhcpc -i eth0<enter><wait10>",
+                "wget http://{{ .HTTPIP }}:{{ .HTTPPort }}/setup-alpine-config<enter><wait>",
+                "setup-alpine -f $PWD/setup-alpine-config<enter><wait>",
+                "{{user `root_password`}}<enter><wait>",
+                "{{user `root_password`}}<enter><wait10>",
+                "<wait>y<enter>",
+                "<wait10><wait15>",
+                "reboot<enter>",
+                "<wait10><wait10><wait10>",
+                "root<enter>",
+                "{{user `root_password`}}<enter>",
+                "apk add sudo<enter><wait5>",
+                "echo 'Defaults env_keep += \"http_proxy https_proxy\"' > /etc/sudoers.d/wheel<enter>",
+                "echo '%wheel ALL=(ALL) ALL' >> /etc/sudoers.d/wheel<enter>",
+                "adduser {{user `ssh_username`}}<enter>",
+                "{{user `ssh_password`}}<enter>",
+                "{{user `ssh_password`}}<enter>",
+                "adduser {{user `ssh_username`}} wheel<enter>",
+                "echo '{{user `ssh_username`}} ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers.d/zz_ensure_this_is_the_last_one<enter>"
+              ]
+        }
+    ],
+    "provisioners": [
+        {
+            "type": "shell",
+            "execute_command": "echo {{user `root_password`}} | sudo -S sh -c '{{ .Path }}'",
+            "scripts":[
+                "setup_files/install_packages.sh",
+                "setup_files/push_vagrant_key.sh",
+                "setup_files/customize_image.sh",
+                "setup_files/patch_ifdown.sh",
+                "setup_files/shrink_size.sh"
+            ]
+        }
+    ],
+    "post-processors": [
+        {
+            "type": "vagrant",
+            "keep_input_artifact": false,
+            "provider_override": "virtualbox",
+            "compression_level": "9"
+        }
+    ]
+}
